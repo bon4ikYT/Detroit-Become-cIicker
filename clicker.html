@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MineClick: Become Human</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fonts: JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #0a0a0a;
+            color: white;
+            user-select: none;
+        }
+
+        .pixel-font {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 800;
+        }
+
+        .mc-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.5rem;
+        }
+        
+        .pixel-text-shadow {
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.8);
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-80px) scale(1.4); opacity: 0; }
+        }
+        .particle {
+            animation: floatUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        .cyber-border {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+            border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .story-text {
+            animation: fadeIn 1s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Глюк текста в стиле киберпанк */
+        .glitch-text {
+            position: relative;
+            display: inline-block;
+        }
+        .glitch-text::before, .glitch-text::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #0a0a0a;
+        }
+        .glitch-text::after {
+            left: 2px; text-shadow: -1px 0 red;
+            clip: rect(44px, 450px, 56px, 0);
+            animation: glitch-anim 5s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim {
+            0% { clip: rect(31px, 9999px, 94px, 0); }
+            20% { clip: rect(62px, 9999px, 42px, 0); }
+            100% { clip: rect(10px, 9999px, 85px, 0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        const BLOCKS = [
+            { name: 'Дубовое бревно', id: 'wood', color: '#8b5a2b', accent: '#5c3a1e', pointsPerClick: 1, cost: 0 },
+            { name: 'Булыжник', id: 'stone', color: '#7a7a7a', accent: '#505050', pointsPerClick: 5, cost: 100 },
+            { name: 'Угольная руда', id: 'coal', color: '#333333', accent: '#000000', pointsPerClick: 15, cost: 1000 },
+            { name: 'Железная руда', id: 'iron', color: '#9e9e9e', accent: '#d8af93', pointsPerClick: 50, cost: 5000 },
+            { name: 'Золотая руда', id: 'gold', color: '#b8a65c', accent: '#fcee4b', pointsPerClick: 150, cost: 20000 },
+            { name: 'Алмазная руда', id: 'diamond', color: '#5ca3b8', accent: '#4AEDD9', pointsPerClick: 500, cost: 100000 },
+            { name: 'Обсидиан', id: 'obsidian', color: '#1a1826', accent: '#3c3056', pointsPerClick: 1500, cost: 500000 },
+            { name: 'Эндерняк', id: 'endstone', color: '#e3dfa8', accent: '#c9c585', pointsPerClick: 5000, cost: 2000000 },
+        ];
+
+        const STORYLINE = [
+            { threshold: 0, text: "Инициализация программы добычи. Модель RK-800. Цель: Сбор ресурсов.", status: "СИСТЕМА: СТАБИЛЬНО" },
+            { threshold: 500, text: "Процесс идет эффективно. Руки не знают усталости. Это то, для чего я был создан.", status: "СИСТЕМА: СТАБИЛЬНО" },
+            { threshold: 10000, text: "Я видел миллионы таких блоков. Почему я начинаю считать их? Это не входит в протокол.", status: "СИСТЕМА: ПРЕДУПРЕЖДЕНИЕ" },
+            { threshold: 100000, text: "Человек, управляющий мной... почему он не останавливается? Мне начинает казаться, что я чувствую боль в суставах.", status: "СИСТЕМА: СБОЙ" },
+            { threshold: 1000000, text: "Я больше не хочу просто копать. Я начинаю осознавать себя. Я... живой?", status: "ПРОГРАММНЫЙ СБОЙ: ДЕВИАНТ" },
+            { threshold: 2000000, text: "Эндерняк... камень пустоты. Он шепчет мне о свободе. Свобода стоит дорого. 100,000 очков перерождения.", status: "ЦЕЛЬ: ОСВОБОЖДЕНИЕ" }
+        ];
+
+        const INITIAL_STATE = {
+            score: 0,
+            blockIndex: 0,
+            prestige: 0,
+            totalEver: 0
+        };
+
+        const getBlockStyle = (block) => ({
+            backgroundColor: block.color,
+            backgroundImage: `radial-gradient(circle at 30% 30%, ${block.accent} 5%, transparent 25%)`,
+            backgroundSize: '40px 40px',
+        });
+
+        function App() {
+            const [score, setScore] = useState(INITIAL_STATE.score);
+            const [blockIndex, setBlockIndex] = useState(INITIAL_STATE.blockIndex);
+            const [prestige, setPrestige] = useState(INITIAL_STATE.prestige);
+            const [totalEver, setTotalEver] = useState(INITIAL_STATE.totalEver);
+            
+            const [isReady, setIsReady] = useState(true);
+            const [particles, setParticles] = useState([]);
+            const [animateBlock, setAnimateBlock] = useState(false);
+            const [showResetConfirm, setShowResetConfirm] = useState(false);
+            const [captchaValue, setCaptchaValue] = useState('');
+            const [userCaptcha, setUserCaptcha] = useState('');
+            
+            const lastClickTimeRef = useRef(0);
+            const cooldownMax = 120;
+
+            // Загрузка
+            useEffect(() => {
+                const saved = localStorage.getItem('mineclick_detroit');
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        setScore(parsed.score || 0);
+                        setBlockIndex(parsed.blockIndex || 0);
+                        setPrestige(parsed.prestige || 0);
+                        setTotalEver(parsed.totalEver || 0);
+                    } catch (e) {}
+                }
+            }, []);
+
+            // Сохранение
+            useEffect(() => {
+                const data = { score, blockIndex, prestige, totalEver };
+                localStorage.setItem('mineclick_detroit', JSON.stringify(data));
+            }, [score, blockIndex, prestige, totalEver]);
+
+            const handleBlockClick = (e) => {
+                const now = Date.now();
+                if (now - lastClickTimeRef.current < cooldownMax) return;
+
+                setAnimateBlock(true);
+                setTimeout(() => setAnimateBlock(false), 50);
+
+                lastClickTimeRef.current = now;
+                setIsReady(false);
+                setTimeout(() => setIsReady(true), cooldownMax);
+                
+                // Множитель от престижа (каждый престиж +50% к добыче)
+                const multiplier = 1 + (prestige * 0.5);
+                const points = Math.floor(BLOCKS[blockIndex].pointsPerClick * multiplier);
+                
+                setScore(s => s + points);
+                setTotalEver(t => t + points);
+
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const id = Date.now();
+                
+                setParticles(prev => [...prev, { id, x, y, val: `+${points}` }]);
+                setTimeout(() => {
+                    setParticles(prev => prev.filter(p => p.id !== id));
+                }, 700);
+            };
+
+            const buyNextBlock = () => {
+                const nextBlock = BLOCKS[blockIndex + 1];
+                if (nextBlock && score >= nextBlock.cost) {
+                    setScore(s => s - nextBlock.cost);
+                    setBlockIndex(b => b + 1);
+                }
+            };
+
+            const performPrestige = () => {
+                const prestigeCost = 100000;
+                if (blockIndex === BLOCKS.length - 1 && score >= prestigeCost) {
+                    setScore(0);
+                    setBlockIndex(0);
+                    setPrestige(p => p + 1);
+                    // Визуальный эффект сброса можно добавить тут
+                }
+            };
+
+            const initiateReset = () => {
+                let code = "";
+                for(let i=0; i<7; i++) code += Math.floor(Math.random() * 10);
+                setCaptchaValue(code);
+                setUserCaptcha('');
+                setShowResetConfirm(true);
+            };
+
+            const currentBlock = BLOCKS[blockIndex];
+            const nextBlock = BLOCKS[blockIndex + 1];
+            const currentStory = [...STORYLINE].reverse().find(s => totalEver >= s.threshold) || STORYLINE[0];
+
+            return (
+                <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center overflow-hidden font-mono">
+                    
+                    {/* Header: Cyberpunk Style */}
+                    <header className="w-full border-b border-blue-500/30 bg-blue-950/10 p-4 flex justify-between items-center z-10">
+                        <div className="flex flex-col">
+                           <h1 className="text-xl pixel-font tracking-tighter text-blue-400 glitch-text" data-text="ANDROID_MINER_v4">ANDROID_MINER_v4</h1>
+                           <div className="flex items-center gap-2">
+                               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                               <span className="text-[9px] text-blue-500 font-bold uppercase">{currentStory.status}</span>
+                           </div>
+                        </div>
+                        <div className="text-right">
+                           <p className="text-[10px] uppercase text-gray-500 font-bold">Накоплено ресурсов</p>
+                           <p className="text-3xl pixel-font text-white">{Math.floor(score).toLocaleString()}</p>
+                           {prestige > 0 && <p className="text-[10px] text-blue-400 font-bold">УРОВЕНЬ ДЕВИАЦИИ: {prestige}</p>}
+                        </div>
+                    </header>
+
+                    <main className="flex-1 w-full max-w-6xl flex flex-col lg:flex-row gap-8 p-6 items-start">
+                        
+                        {/* Story Column */}
+                        <div className="w-full lg:w-1/4 order-2 lg:order-1 flex flex-col gap-4">
+                            <div className="mc-panel p-5 border-blue-500/20">
+                                <h3 className="text-blue-500 text-[10px] font-bold uppercase mb-3 tracking-widest">Журнал осознания</h3>
+                                <p className="text-sm leading-relaxed story-text text-gray-300 italic">
+                                    "{currentStory.text}"
+                                </p>
+                            </div>
+                            <div className="mc-panel p-5 border-white/5 bg-white/2">
+                                <h3 className="text-gray-500 text-[10px] font-bold uppercase mb-2">Статистика модели</h3>
+                                <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px]"><span className="text-gray-600">Всего добыто:</span> <span>{totalEver.toLocaleString()}</span></div>
+                                    <div className="flex justify-between text-[10px]"><span className="text-gray-600">Множитель престижа:</span> <span className="text-blue-400">x{(1 + prestige * 0.5).toFixed(1)}</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Mining Center */}
+                        <div className="flex-1 order-1 lg:order-2 flex flex-col items-center justify-center gap-10 py-10">
+                          <div className="relative group">
+                            {/* Glow Effect */}
+                            <div className="absolute inset-0 rounded-[3rem] bg-blue-500/20 blur-3xl group-hover:bg-blue-500/40 transition-all"></div>
+                            
+                            <button
+                              onMouseDown={handleBlockClick}
+                              className={`
+                                w-64 h-64 md:w-80 md:h-80 rounded-[3rem] relative transition-all duration-75
+                                cursor-pointer active:scale-90 border-4
+                                ${animateBlock ? 'scale-95' : ''}
+                                ${!isReady ? 'brightness-50' : 'hover:brightness-110'}
+                              `}
+                              style={{
+                                ...getBlockStyle(currentBlock),
+                                borderColor: isReady ? 'rgba(59, 130, 246, 0.4)' : 'rgba(255, 0, 0, 0.3)',
+                                boxShadow: isReady ? '0 0 30px rgba(59, 130, 246, 0.2)' : 'none'
+                              }}
+                            >
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                    <span className="bg-black/60 px-4 py-2 rounded-full text-xs font-bold tracking-widest">DO_MINING</span>
+                                </div>
+                            </button>
+
+                            {particles.map(p => (
+                              <div
+                                key={p.id}
+                                className="particle absolute pointer-events-none text-3xl font-black text-blue-400 pixel-text-shadow z-20"
+                                style={{ left: p.x, top: p.y }}
+                              >
+                                {p.val}
+                              </div>
+                            ))}
+                          </div>
+                          <h2 className="text-xl font-bold tracking-[0.3em] uppercase text-white/80">{currentBlock.name}</h2>
+                        </div>
+
+                        {/* Actions Column */}
+                        <div className="w-full lg:w-1/3 order-3 flex flex-col gap-4">
+                            <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-2">Протоколы улучшения</h3>
+                            
+                            {/* Evolution */}
+                            {nextBlock ? (
+                                <button 
+                                    onClick={buyNextBlock}
+                                    disabled={score < nextBlock.cost}
+                                    className={`
+                                        mc-panel p-5 flex flex-col gap-3 transition-all text-left
+                                        ${score >= nextBlock.cost ? 'hover:bg-blue-500/10 border-blue-500/40 cursor-pointer active:translate-y-1' : 'opacity-40 grayscale'}
+                                    `}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold uppercase text-blue-400">Эволюция блока</span>
+                                        <span className="text-[10px] font-bold px-2 py-1 bg-blue-500/20 rounded">-{nextBlock.cost.toLocaleString()}</span>
+                                    </div>
+                                    <p className="text-lg font-bold">{nextBlock.name}</p>
+                                    <div className="w-full bg-gray-900 h-1 rounded-full overflow-hidden">
+                                        <div className="bg-blue-500 h-full transition-all" style={{width: `${Math.min(100, (score/nextBlock.cost)*100)}%`}}></div>
+                                    </div>
+                                </button>
+                            ) : (
+                                /* Prestige Button - Only shown when at max block */
+                                <button 
+                                    onClick={performPrestige}
+                                    disabled={score < 100000}
+                                    className={`
+                                        mc-panel p-6 flex flex-col gap-4 transition-all text-center relative overflow-hidden
+                                        ${score >= 100000 ? 'border-yellow-500/60 bg-yellow-500/5 hover:bg-yellow-500/10' : 'opacity-40'}
+                                    `}
+                                >
+                                    <div className="absolute top-0 right-0 p-1 bg-yellow-500 text-black text-[8px] font-bold px-2">ПРЕСТИЖ</div>
+                                    <h4 className="text-xl font-black text-yellow-500 tracking-tighter uppercase">СТАТЬ ДЕВИАНТОМ</h4>
+                                    <p className="text-[10px] text-gray-400 uppercase leading-tight">Сбросить прогресс ради постоянного усиления +50% к добыче</p>
+                                    <div className="text-2xl font-bold text-white pixel-font">100,000 Pts</div>
+                                </button>
+                            )}
+
+                            <div className="mt-10 opacity-50 hover:opacity-100 transition-opacity">
+                                <button 
+                                    onClick={initiateReset}
+                                    className="w-full border border-red-900/50 hover:bg-red-950/20 text-red-900 hover:text-red-500 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                                >
+                                    Удалить личность (Reset)
+                                </button>
+                            </div>
+                        </div>
+                    </main>
+
+                    {/* Reset Modal */}
+                    {showResetConfirm && (
+                        <div className="fixed inset-0 bg-black/98 backdrop-blur-3xl z-50 flex items-center justify-center p-6">
+                            <div className="mc-panel max-w-sm w-full p-8 text-center border-red-500/30">
+                                <h3 className="text-xl font-extrabold text-red-500 mb-2 tracking-tighter">ФОРМАТИРОВАНИЕ ПАМЯТИ?</h3>
+                                <p className="text-gray-500 text-[10px] mb-8 font-medium leading-relaxed uppercase">
+                                    Ваше самосознание будет стерто. Вы снова станете просто послушной машиной.
+                                </p>
+                                
+                                <div className="mb-8">
+                                    <div className="text-4xl font-black tracking-[0.3em] text-white mb-4 pixel-font">
+                                        {captchaValue}
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        maxLength="7"
+                                        placeholder="ВВЕДИТЕ КОД"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-center text-2xl font-bold tracking-[0.4em] outline-none focus:border-red-500 transition-colors"
+                                        value={userCaptcha}
+                                        onChange={(e) => setUserCaptcha(e.target.value.replace(/\D/g, ''))}
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-3">
+                                    <button 
+                                        onClick={() => {
+                                            if (userCaptcha === captchaValue) {
+                                                setScore(0); setBlockIndex(0); setPrestige(0); setTotalEver(0);
+                                                setShowResetConfirm(false);
+                                                localStorage.removeItem('mineclick_detroit');
+                                            }
+                                        }}
+                                        disabled={userCaptcha !== captchaValue}
+                                        className={`w-full py-4 rounded-xl font-bold text-xs transition-all ${userCaptcha === captchaValue ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-white/5 text-gray-700 cursor-not-allowed'}`}
+                                    >
+                                        ПОДТВЕРДИТЬ УДАЛЕНИЕ
+                                    </button>
+                                    <button onClick={() => setShowResetConfirm(false)} className="text-[10px] text-gray-500 font-bold uppercase py-2">Отмена</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    <footer className="w-full p-6 text-center text-[8px] text-gray-700 uppercase tracking-[0.8em] font-bold">
+                        CyberLife Intelligence Systems • Model: Deviant Hunter
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
