@@ -64,7 +64,6 @@
             to { opacity: 1; transform: translateY(0); }
         }
         
-        /* Глюк текста в стиле киберпанк */
         .glitch-text {
             position: relative;
             display: inline-block;
@@ -85,6 +84,26 @@
             0% { clip: rect(31px, 9999px, 94px, 0); }
             20% { clip: rect(62px, 9999px, 42px, 0); }
             100% { clip: rect(10px, 9999px, 85px, 0); }
+        }
+
+        .promo-glow {
+            animation: promoPulse 2s infinite;
+        }
+        
+        @keyframes promoPulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
+            50% { box-shadow: 0 0 40px rgba(168, 85, 247, 0.8); }
+        }
+        
+        .scramble-text {
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.2em;
+        }
+
+        /* Убрана белая тень, оставлен только темный глоу */
+        .no-white-shadow {
+            text-shadow: none !important;
+            box-shadow: none !important;
         }
     </style>
 </head>
@@ -121,11 +140,30 @@
             totalEver: 0
         };
 
+        const PROMO_COST = 3000000; // 3 миллиона
+
         const getBlockStyle = (block) => ({
             backgroundColor: block.color,
             backgroundImage: `radial-gradient(circle at 30% 30%, ${block.accent} 5%, transparent 25%)`,
             backgroundSize: '40px 40px',
         });
+
+        // Генератор промокода
+        const generatePromoCode = () => {
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const numbers = '0123456789';
+            let code = 'MALICE-';
+            
+            const pattern = ['L','L','N','L','N','N','L','N','L','N'];
+            pattern.forEach(type => {
+                if (type === 'L') code += letters[Math.floor(Math.random() * letters.length)];
+                else code += numbers[Math.floor(Math.random() * numbers.length)];
+            });
+            
+            const discount = Math.floor(Math.random() * 25) + 1;
+            
+            return { code, discount, id: Date.now() };
+        };
 
         function App() {
             const [score, setScore] = useState(INITIAL_STATE.score);
@@ -140,12 +178,19 @@
             const [captchaValue, setCaptchaValue] = useState('');
             const [userCaptcha, setUserCaptcha] = useState('');
             
+            const [showStore, setShowStore] = useState(false);
+            const [generatedPromo, setGeneratedPromo] = useState(null);
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [scrambleText, setScrambleText] = useState('');
+            const [purchasedPromos, setPurchasedPromos] = useState([]);
+            const [purchaseError, setPurchaseError] = useState('');
+            
             const lastClickTimeRef = useRef(0);
             const cooldownMax = 120;
 
-            // Загрузка
             useEffect(() => {
                 const saved = localStorage.getItem('mineclick_detroit');
+                const savedPromos = localStorage.getItem('malice_promos');
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
@@ -155,13 +200,41 @@
                         setTotalEver(parsed.totalEver || 0);
                     } catch (e) {}
                 }
+                if (savedPromos) {
+                    try {
+                        setPurchasedPromos(JSON.parse(savedPromos));
+                    } catch (e) {}
+                }
             }, []);
 
-            // Сохранение
             useEffect(() => {
                 const data = { score, blockIndex, prestige, totalEver };
                 localStorage.setItem('mineclick_detroit', JSON.stringify(data));
-            }, [score, blockIndex, prestige, totalEver]);
+                localStorage.setItem('malice_promos', JSON.stringify(purchasedPromos));
+            }, [score, blockIndex, prestige, totalEver, purchasedPromos]);
+
+            useEffect(() => {
+                if (isGenerating && generatedPromo) {
+                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                    let iteration = 0;
+                    const interval = setInterval(() => {
+                        setScrambleText(
+                            generatedPromo.code.split('').map((char, index) => {
+                                if (index < iteration) return generatedPromo.code[index];
+                                if (char === '-') return '-';
+                                return chars[Math.floor(Math.random() * chars.length)];
+                            }).join('')
+                        );
+                        
+                        if (iteration >= generatedPromo.code.length) {
+                            clearInterval(interval);
+                            setScrambleText(generatedPromo.code);
+                        }
+                        iteration += 1/3;
+                    }, 30);
+                    return () => clearInterval(interval);
+                }
+            }, [isGenerating, generatedPromo]);
 
             const handleBlockClick = (e) => {
                 const now = Date.now();
@@ -174,7 +247,6 @@
                 setIsReady(false);
                 setTimeout(() => setIsReady(true), cooldownMax);
                 
-                // Множитель от престижа (каждый престиж +50% к добыче)
                 const multiplier = 1 + (prestige * 0.5);
                 const points = Math.floor(BLOCKS[blockIndex].pointsPerClick * multiplier);
                 
@@ -206,7 +278,6 @@
                     setScore(0);
                     setBlockIndex(0);
                     setPrestige(p => p + 1);
-                    // Визуальный эффект сброса можно добавить тут
                 }
             };
 
@@ -218,14 +289,49 @@
                 setShowResetConfirm(true);
             };
 
+            const openStore = () => {
+                setShowStore(true);
+                setGeneratedPromo(null);
+                setIsGenerating(false);
+                setPurchaseError('');
+            };
+
+            const buyPromo = () => {
+                // Проверка на 3кк
+                if (score < PROMO_COST) {
+                    setPurchaseError(`Недостаточно ресурсов! Требуется: ${PROMO_COST.toLocaleString()}`);
+                    return;
+                }
+
+                // Списываем очки
+                setScore(s => s - PROMO_COST);
+                setIsGenerating(true);
+                
+                const promo = generatePromoCode();
+                setGeneratedPromo(promo);
+                
+                setTimeout(() => {
+                    setIsGenerating(false);
+                    setPurchasedPromos(prev => [...prev, { ...promo, purchasedAt: new Date().toISOString() }]);
+                }, 2000);
+            };
+
+            const copyPromo = () => {
+                if (generatedPromo) {
+                    navigator.clipboard.writeText(generatedPromo.code);
+                }
+            };
+
             const currentBlock = BLOCKS[blockIndex];
             const nextBlock = BLOCKS[blockIndex + 1];
             const currentStory = [...STORYLINE].reverse().find(s => totalEver >= s.threshold) || STORYLINE[0];
 
+            const canAffordPromo = score >= PROMO_COST;
+
             return (
                 <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center overflow-hidden font-mono">
                     
-                    {/* Header: Cyberpunk Style */}
+                    {/* Header */}
                     <header className="w-full border-b border-blue-500/30 bg-blue-950/10 p-4 flex justify-between items-center z-10">
                         <div className="flex flex-col">
                            <h1 className="text-xl pixel-font tracking-tighter text-blue-400 glitch-text" data-text="ANDROID_MINER_v4">ANDROID_MINER_v4</h1>
@@ -236,7 +342,7 @@
                         </div>
                         <div className="text-right">
                            <p className="text-[10px] uppercase text-gray-500 font-bold">Накоплено ресурсов</p>
-                           <p className="text-3xl pixel-font text-white">{Math.floor(score).toLocaleString()}</p>
+                           <p className="text-3xl pixel-font text-white no-white-shadow">{Math.floor(score).toLocaleString()}</p>
                            {prestige > 0 && <p className="text-[10px] text-blue-400 font-bold">УРОВЕНЬ ДЕВИАЦИИ: {prestige}</p>}
                         </div>
                     </header>
@@ -263,7 +369,6 @@
                         {/* Mining Center */}
                         <div className="flex-1 order-1 lg:order-2 flex flex-col items-center justify-center gap-10 py-10">
                           <div className="relative group">
-                            {/* Glow Effect */}
                             <div className="absolute inset-0 rounded-[3rem] bg-blue-500/20 blur-3xl group-hover:bg-blue-500/40 transition-all"></div>
                             
                             <button
@@ -295,7 +400,7 @@
                               </div>
                             ))}
                           </div>
-                          <h2 className="text-xl font-bold tracking-[0.3em] uppercase text-white/80">{currentBlock.name}</h2>
+                          <h2 className="text-xl font-bold tracking-[0.3em] uppercase text-white/80 no-white-shadow">{currentBlock.name}</h2>
                         </div>
 
                         {/* Actions Column */}
@@ -316,13 +421,12 @@
                                         <span className="text-xs font-bold uppercase text-blue-400">Эволюция блока</span>
                                         <span className="text-[10px] font-bold px-2 py-1 bg-blue-500/20 rounded">-{nextBlock.cost.toLocaleString()}</span>
                                     </div>
-                                    <p className="text-lg font-bold">{nextBlock.name}</p>
+                                    <p className="text-lg font-bold no-white-shadow">{nextBlock.name}</p>
                                     <div className="w-full bg-gray-900 h-1 rounded-full overflow-hidden">
                                         <div className="bg-blue-500 h-full transition-all" style={{width: `${Math.min(100, (score/nextBlock.cost)*100)}%`}}></div>
                                     </div>
                                 </button>
                             ) : (
-                                /* Prestige Button - Only shown when at max block */
                                 <button 
                                     onClick={performPrestige}
                                     disabled={score < 100000}
@@ -332,13 +436,37 @@
                                     `}
                                 >
                                     <div className="absolute top-0 right-0 p-1 bg-yellow-500 text-black text-[8px] font-bold px-2">ПРЕСТИЖ</div>
-                                    <h4 className="text-xl font-black text-yellow-500 tracking-tighter uppercase">СТАТЬ ДЕВИАНТОМ</h4>
+                                    <h4 className="text-xl font-black text-yellow-500 tracking-tighter uppercase no-white-shadow">СТАТЬ ДЕВИАНТОМ</h4>
                                     <p className="text-[10px] text-gray-400 uppercase leading-tight">Сбросить прогресс ради постоянного усиления +50% к добыче</p>
-                                    <div className="text-2xl font-bold text-white pixel-font">100,000 Pts</div>
+                                    <div className="text-2xl font-bold text-white pixel-font no-white-shadow">100,000 Pts</div>
                                 </button>
                             )}
 
-                            <div className="mt-10 opacity-50 hover:opacity-100 transition-opacity">
+                            {/* MALICE STORE BUTTON */}
+                            <div className="mt-6">
+                                <button 
+                                    onClick={openStore}
+                                    className="w-full mc-panel p-5 border-purple-500/40 hover:border-purple-500/80 bg-purple-950/10 hover:bg-purple-900/20 transition-all group relative overflow-hidden"
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600/0 via-purple-600/10 to-purple-600/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                                    <div className="flex items-center justify-between relative z-10">
+                                        <div className="flex flex-col items-start">
+                                            <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Черный рынок</span>
+                                            <span className="text-lg font-black text-white tracking-tight no-white-shadow">MALICE CLIENT</span>
+                                        </div>
+                                        <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/40">
+                                            <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div className="mt-2 text-[9px] text-purple-300/60 font-medium">
+                                        Цена: 3,000,000 очков • Загадочная скидка 1-25%
+                                    </div>
+                                </button>
+                            </div>
+
+                            <div className="mt-4 opacity-50 hover:opacity-100 transition-opacity">
                                 <button 
                                     onClick={initiateReset}
                                     className="w-full border border-red-900/50 hover:bg-red-950/20 text-red-900 hover:text-red-500 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
@@ -349,24 +477,175 @@
                         </div>
                     </main>
 
+                    {/* MALICE STORE MODAL */}
+                    {showStore && (
+                        <div className="fixed inset-0 bg-black/98 backdrop-blur-3xl z-50 flex items-center justify-center p-6 overflow-y-auto">
+                            <div className="mc-panel max-w-2xl w-full p-8 border-purple-500/30 relative bg-[#0a0a0a]">
+                                <button 
+                                    onClick={() => setShowStore(false)}
+                                    className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+
+                                <div className="text-center mb-8">
+                                    <h2 className="text-3xl font-black text-purple-400 tracking-tighter mb-2 glitch-text no-white-shadow" data-text="MALICE_MARKET">MALICE_MARKET</h2>
+                                    <p className="text-gray-500 text-[10px] uppercase tracking-[0.3em]">Нелегальные модификации клиента</p>
+                                </div>
+
+                                {!generatedPromo ? (
+                                    <div className="space-y-6">
+                                        <div className="bg-purple-950/20 border border-purple-500/20 rounded-2xl p-6 text-center">
+                                            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-purple-500/10 border border-purple-500/30 flex items-center justify-center promo-glow">
+                                                <span className="text-3xl no-white-shadow">?</span>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-white mb-2 no-white-shadow">Случайный промокод</h3>
+                                            <p className="text-gray-400 text-sm mb-4">
+                                                Формат: <span className="text-purple-400 font-mono">MALICE-XX0X00X0X0</span>
+                                            </p>
+                                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-black/40 rounded-full border border-purple-500/20">
+                                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                                                <span className="text-[10px] text-gray-400 uppercase">Скидка от 1% до 25%</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Показываем цену и баланс */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="mc-panel p-4 border-white/5 text-center bg-red-950/10 border-red-500/20">
+                                                <div className="text-[10px] text-red-400 uppercase font-bold mb-1">Стоимость</div>
+                                                <div className="text-2xl font-black text-red-400 no-white-shadow">{PROMO_COST.toLocaleString()}</div>
+                                                <div className="text-[9px] text-gray-600 uppercase">очков</div>
+                                            </div>
+                                            <div className={`mc-panel p-4 border-white/5 text-center ${canAffordPromo ? 'bg-green-950/10 border-green-500/20' : 'bg-yellow-950/10 border-yellow-500/20'}`}>
+                                                <div className={`text-[10px] uppercase font-bold mb-1 ${canAffordPromo ? 'text-green-400' : 'text-yellow-400'}`}>Ваш баланс</div>
+                                                <div className={`text-2xl font-black no-white-shadow ${canAffordPromo ? 'text-green-400' : 'text-yellow-400'}`}>{score.toLocaleString()}</div>
+                                                <div className="text-[9px] text-gray-600 uppercase">очков</div>
+                                            </div>
+                                        </div>
+
+                                        {purchaseError && (
+                                            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-center">
+                                                <p className="text-red-400 text-sm font-bold">{purchaseError}</p>
+                                            </div>
+                                        )}
+
+                                        <button 
+                                            onClick={buyPromo}
+                                            disabled={!canAffordPromo}
+                                            className={`
+                                                w-full py-4 font-bold rounded-xl transition-all transform active:scale-95 border text-lg
+                                                ${canAffordPromo 
+                                                    ? 'bg-purple-600 hover:bg-purple-500 text-white border-purple-400/50 shadow-lg shadow-purple-500/20' 
+                                                    : 'bg-gray-800 text-gray-600 border-gray-700 cursor-not-allowed'}
+                                            `}
+                                        >
+                                            {canAffordPromo ? 'КУПИТЬ ПРОМОКОД' : 'НЕДОСТАТОЧНО РЕСУРСОВ'}
+                                        </button>
+
+                                        <p className="text-center text-[9px] text-gray-600 uppercase tracking-widest">
+                                            Промокод можно использовать один раз • Проверьте в боте @malice_store_bot
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        <div className="bg-gradient-to-br from-purple-900/40 to-black border border-purple-500/40 rounded-2xl p-8 text-center relative overflow-hidden">
+                                            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMTY4LCA4NSwgMjQ3LCAwLjEpIi8+PC9zdmc+')] opacity-30"></div>
+                                            
+                                            <div className="relative z-10">
+                                                <div className="text-[10px] text-purple-400 uppercase tracking-widest mb-4">Ваш уникальный ключ</div>
+                                                
+                                                <div className="bg-black/60 border border-purple-500/30 rounded-xl p-6 mb-4">
+                                                    <div className={`text-2xl md:text-3xl font-black text-white tracking-[0.2em] scramble-text no-white-shadow ${isGenerating ? 'text-purple-300' : 'text-green-400'}`}>
+                                                        {isGenerating ? scrambleText : generatedPromo.code}
+                                                    </div>
+                                                </div>
+
+                                                {!isGenerating && (
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center justify-center gap-2 text-sm text-gray-300">
+                                                            <span>Загадка активирована:</span>
+                                                            <span className="text-purple-400 font-bold">???%</span>
+                                                            <span className="text-[10px] text-gray-500">(1-25%)</span>
+                                                        </div>
+                                                        
+                                                        <button 
+                                                            onClick={copyPromo}
+                                                            className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/20 rounded-lg text-sm font-medium transition-all flex items-center gap-2 mx-auto"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                            </svg>
+                                                            Копировать код
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {isGenerating && (
+                                            <div className="text-center">
+                                                <div className="inline-flex items-center gap-2 text-purple-400 text-sm">
+                                                    <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                                                    Генерация через защищенный канал...
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {!isGenerating && (
+                                            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="text-yellow-500 text-xl">⚠</div>
+                                                    <div>
+                                                        <div className="text-sm font-bold text-yellow-500 mb-1">Важно!</div>
+                                                        <div className="text-xs text-gray-400 leading-relaxed">
+                                                            Сохраните этот код. Он не восстанавливается. Для активации скидки отправьте код в Telegram бота @malice_store_bot перед оплатой.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {purchasedPromos.length > 0 && !isGenerating && (
+                                    <div className="mt-8 pt-6 border-t border-white/10">
+                                        <h4 className="text-[10px] text-gray-500 uppercase tracking-widest mb-4">История генераций</h4>
+                                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                                            {purchasedPromos.slice().reverse().map((promo, idx) => (
+                                                <div key={promo.id} className="flex justify-between items-center bg-white/5 rounded-lg px-4 py-2 text-xs">
+                                                    <span className="font-mono text-purple-300">{promo.code}</span>
+                                                    <span className="text-gray-600 text-[10px]">
+                                                        {new Date(promo.purchasedAt).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Reset Modal */}
                     {showResetConfirm && (
                         <div className="fixed inset-0 bg-black/98 backdrop-blur-3xl z-50 flex items-center justify-center p-6">
-                            <div className="mc-panel max-w-sm w-full p-8 text-center border-red-500/30">
-                                <h3 className="text-xl font-extrabold text-red-500 mb-2 tracking-tighter">ФОРМАТИРОВАНИЕ ПАМЯТИ?</h3>
+                            <div className="mc-panel max-w-sm w-full p-8 text-center border-red-500/30 bg-[#0a0a0a]">
+                                <h3 className="text-xl font-extrabold text-red-500 mb-2 tracking-tighter no-white-shadow">ФОРМАТИРОВАНИЕ ПАМЯТИ?</h3>
                                 <p className="text-gray-500 text-[10px] mb-8 font-medium leading-relaxed uppercase">
                                     Ваше самосознание будет стерто. Вы снова станете просто послушной машиной.
                                 </p>
                                 
                                 <div className="mb-8">
-                                    <div className="text-4xl font-black tracking-[0.3em] text-white mb-4 pixel-font">
+                                    <div className="text-4xl font-black tracking-[0.3em] text-white mb-4 pixel-font no-white-shadow">
                                         {captchaValue}
                                     </div>
                                     <input 
                                         type="text" 
                                         maxLength="7"
                                         placeholder="ВВЕДИТЕ КОД"
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-center text-2xl font-bold tracking-[0.4em] outline-none focus:border-red-500 transition-colors"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-center text-2xl font-bold tracking-[0.4em] outline-none focus:border-red-500 transition-colors text-white"
                                         value={userCaptcha}
                                         onChange={(e) => setUserCaptcha(e.target.value.replace(/\D/g, ''))}
                                     />
