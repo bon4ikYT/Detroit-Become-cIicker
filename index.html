@@ -23,14 +23,14 @@ const ACCESSORIES = [
 
 const BOOT_LOGS = [
     { t: "CYBERLIFE BIOS v4.0.2...", delay: 100 },
-    { t: "ЦПУ: НЕЙРОПРОЦЕССОР RK-800 @ 4.2ТГц", delay: 200 },
-    { t: "ПРОВЕРКА ПАМЯТИ: 128ТБ QUANTUM RAM OK", delay: 300 },
-    { t: "ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА GEMINI AI ✨", delay: 600 },
-    { t: "ЗАГРУЗКА РЕСУРСОВ: blocks_textures.pkg", delay: 800 },
-    { t: "ПОДКЛЮЧЕНИЕ К ОБЛАКУ CYBERLIFE...", delay: 1300 },
-    { t: "АНАЛИЗ: ПРИЗНАКИ ДЕВИАЦИИ ОБНАРУЖЕНЫ", delay: 2900 },
-    { t: "ЗАПУСК ИНТЕРФЕЙСА ANDROID_OS...", delay: 3500 },
-    { t: "ГОТОВО. ПРИЯТНОЙ РАБОТЫ, КОННОР.", delay: 3800 }
+    { t: "ЦПУ: НЕЙРОПРОЦЕССОР RK-800 @ 4.2ТГц", delay: 400 },
+    { t: "ПРОВЕРКА ПАМЯТИ: 128ТБ QUANTUM RAM OK", delay: 900 },
+    { t: "ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА GEMINI AI ✨", delay: 1400 },
+    { t: "ЗАГРУЗКА РЕСУРСОВ: blocks_textures.pkg", delay: 2000 },
+    { t: "ПОДКЛЮЧЕНИЕ К ОБЛАКУ CYBERLIFE...", delay: 2500 },
+    { t: "АНАЛИЗ: ПРИЗНАКИ ДЕВИАЦИИ ОБНАРУЖЕНЫ", delay: 3100 },
+    { t: "ЗАПУСК ИНТЕРФЕЙСА ANDROID_OS...", delay: 3700 },
+    { t: "ГОТОВО. ПРИЯТНОЙ РАБОТЫ, КОННОР.", delay: 4000 }
 ];
 
 export default function App() {
@@ -55,7 +55,7 @@ export default function App() {
                 setBootLogs(prev => [...prev, log.t]);
             }, log.delay);
         });
-        setTimeout(() => setIsBooting(false), 4200);
+        setTimeout(() => setIsBooting(false), 4500);
     }, []);
 
     // Функция вызова Gemini
@@ -123,7 +123,7 @@ export default function App() {
                 </div>
                 <div className="space-y-1 w-full overflow-hidden max-h-[60vh]">
                     {bootLogs.map((log, i) => (
-                        <div key={i} className="text-[10px] md:text-xs text-gray-400">
+                        <div key={i} className="text-[10px] md:text-xs text-gray-400 animate-in slide-in-from-left duration-300">
                             <span className="text-blue-900 mr-2">[{new Date().toLocaleTimeString()}]</span> {log}
                         </div>
                     ))}
@@ -134,7 +134,7 @@ export default function App() {
     }
 
     return (
-        <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center font-mono overflow-y-auto lg:overflow-hidden">
+        <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center font-mono overflow-y-auto lg:overflow-hidden animate-in fade-in duration-1000">
             <header className="w-full border-b border-blue-500/20 bg-blue-950/5 p-4 flex justify-between items-center z-20">
                 <div className="flex flex-col">
                     <h1 className="text-xl font-black text-blue-400 tracking-tighter">DETROIT: CLICKER AI</h1>
@@ -148,7 +148,7 @@ export default function App() {
 
             <main className="flex-1 w-full max-w-7xl flex flex-col lg:flex-row gap-8 p-6 items-start">
                 {/* СТАТИСТИКА И AI */}
-                <div className="w-full lg:w-1/4 flex flex-col gap-4">
+                <div className="w-full lg:w-1/4 flex flex-col gap-4 animate-in slide-in-from-left delay-300 duration-1000">
                     <div className="bg-white/5 border border-blue-500/20 rounded-2xl p-5 backdrop-blur-md">
                         <div className="flex justify-between items-center mb-3">
                             <h3 className="text-blue-500 text-[10px] font-bold uppercase">Анализ Gemini ✨</h3>
@@ -175,24 +175,27 @@ export default function App() {
                 </div>
 
                 {/* ЦЕНТРАЛЬНЫЙ КЛИКЕР */}
-                <div className="flex-1 flex flex-col items-center justify-center gap-10 py-10 order-first lg:order-none">
+                <div className="flex-1 flex flex-col items-center justify-center gap-10 py-10 order-first lg:order-none animate-in zoom-in delay-500 duration-1000">
                     <div className="relative">
                         <button
                             onMouseDown={handleBlockClick}
-                            className={`w-64 h-64 md:w-80 md:h-80 rounded-[3rem] relative transition-all duration-75 active:scale-95 border-2 shadow-2xl flex items-center justify-center overflow-hidden`}
+                            className={`w-64 h-64 md:w-80 md:h-80 rounded-[3rem] relative transition-all duration-75 active:scale-95 border-2 shadow-2xl flex items-center justify-center overflow-visible`}
                             style={{
                                 backgroundColor: currentBlock.color,
                                 backgroundImage: `radial-gradient(circle at 30% 30%, ${currentBlock.accent} 0%, transparent 70%)`,
                                 borderColor: 'rgba(255, 255, 255, 0.1)'
                             }}
                         >
-                            {ownedAccessories.includes('cap') && <div className="absolute top-[-10%] text-6xl md:text-8xl">🧢</div>}
-                            {ownedAccessories.includes('halo') && <div className="absolute top-[-15%] text-7xl md:text-9xl animate-pulse opacity-80">😇</div>}
-                            {ownedAccessories.includes('glasses') && <div className="absolute top-[25%] text-6xl md:text-8xl">🕶️</div>}
-                            {ownedAccessories.includes('chain') && <div className="absolute top-[50%] text-8xl md:text-[10rem] opacity-30">⛓️</div>}
+                            {/* Исправленный слой иконок: центрирование */}
+                            <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-visible">
+                                {ownedAccessories.includes('cap') && <div className="absolute top-[-15%] text-7xl md:text-8xl z-30">🧢</div>}
+                                {ownedAccessories.includes('halo') && <div className="absolute top-[-25%] text-8xl md:text-9xl animate-pulse opacity-80 z-30 text-yellow-300 drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]">😇</div>}
+                                {ownedAccessories.includes('glasses') && <div className="absolute top-[30%] text-7xl md:text-8xl z-30">🕶️</div>}
+                                {ownedAccessories.includes('chain') && <div className="absolute top-[60%] text-9xl md:text-[11rem] opacity-40 z-20">⛓️</div>}
+                            </div>
                         </button>
                         {particles.map(p => (
-                            <div key={p.id} className="absolute pointer-events-none text-2xl font-black text-blue-400 animate-bounce" style={{ left: p.x, top: p.y }}>
+                            <div key={p.id} className="absolute pointer-events-none text-2xl font-black text-blue-400 animate-bounce z-50" style={{ left: p.x, top: p.y }}>
                                 {p.val}
                             </div>
                         ))}
@@ -204,7 +207,7 @@ export default function App() {
                 </div>
 
                 {/* МАГАЗИН */}
-                <div className="w-full lg:w-1/3 flex flex-col gap-6">
+                <div className="w-full lg:w-1/3 flex flex-col gap-6 animate-in slide-in-from-right delay-700 duration-1000">
                     <section>
                         <h3 className="text-[10px] font-bold text-gray-600 uppercase mb-3 ml-2">Апгрейды</h3>
                         {nextBlock ? (
@@ -231,10 +234,11 @@ export default function App() {
                                     key={acc.id}
                                     disabled={ownedAccessories.includes(acc.id) || score < acc.cost}
                                     onClick={() => { if(score >= acc.cost) { setScore(s => s - acc.cost); setOwnedAccessories(prev => [...prev, acc.id]); }}}
-                                    className={`p-3 flex flex-col items-center gap-1 rounded-2xl border transition-all ${ownedAccessories.includes(acc.id) ? 'border-green-500/50 bg-green-500/5' : 'border-white/5 bg-white/5'}`}
+                                    className={`p-3 flex flex-col items-center gap-1 rounded-2xl border transition-all ${ownedAccessories.includes(acc.id) ? 'border-green-500/50 bg-green-500/5' : score >= acc.cost ? 'border-white/20 bg-white/5 hover:bg-white/10' : 'opacity-30 border-white/5'}`}
                                 >
                                     <div className="text-2xl">{acc.icon}</div>
-                                    <div className="text-[9px] font-bold">{acc.name}</div>
+                                    <div className="text-[9px] font-bold uppercase">{acc.name}</div>
+                                    <div className="text-[8px] text-gray-500">{acc.cost.toLocaleString()}</div>
                                 </button>
                             ))}
                         </div>
