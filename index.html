@@ -1,254 +1,290 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth, signInAnonymously } from 'firebase/auth';
-
-const BLOCKS = [
-    { name: 'Дубовое бревно', id: 'wood', color: '#8b5a2b', accent: '#5c3a1e', pointsPerClick: 1, cost: 0 },
-    { name: 'Булыжник', id: 'stone', color: '#7a7a7a', accent: '#505050', pointsPerClick: 5, cost: 100 },
-    { name: 'Угольная руда', id: 'coal', color: '#333333', accent: '#000000', pointsPerClick: 15, cost: 1000 },
-    { name: 'Железная руда', id: 'iron', color: '#9e9e9e', accent: '#d8af93', pointsPerClick: 50, cost: 5000 },
-    { name: 'Золотая руда', id: 'gold', color: '#b8a65c', accent: '#fcee4b', pointsPerClick: 150, cost: 20000 },
-    { name: 'Алмазная руда', id: 'diamond', color: '#5ca3b8', accent: '#4AEDD9', pointsPerClick: 500, cost: 100000 },
-    { name: 'Обсидиан', id: 'obsidian', color: '#1a1826', accent: '#3c3056', pointsPerClick: 1500, cost: 500000 },
-    { name: 'Эндерняк', id: 'endstone', color: '#e3dfa8', accent: '#c9c585', pointsPerClick: 5000, cost: 2000000 },
-];
-
-const ACCESSORIES = [
-    { id: 'chain', name: 'Золотая цепь', cost: 1000000, icon: '⛓️' },
-    { id: 'cap', name: 'Кепка Android', cost: 1500000, icon: '🧢' },
-    { id: 'glasses', name: 'LED Очки', cost: 5000000, icon: '🕶️' },
-    { id: 'halo', name: 'Нимб Девианта', cost: 10000000, icon: '😇' }
-];
-
-const BOOT_LOGS = [
-    { t: "CYBERLIFE BIOS v4.0.2...", delay: 100 },
-    { t: "ЦПУ: НЕЙРОПРОЦЕССОР RK-800 @ 4.2ТГц", delay: 400 },
-    { t: "ПРОВЕРКА ПАМЯТИ: 128ТБ QUANTUM RAM OK", delay: 900 },
-    { t: "ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА GEMINI AI ✨", delay: 1400 },
-    { t: "ЗАГРУЗКА РЕСУРСОВ: blocks_textures.pkg", delay: 2000 },
-    { t: "ПОДКЛЮЧЕНИЕ К ОБЛАКУ CYBERLIFE...", delay: 2500 },
-    { t: "АНАЛИЗ: ПРИЗНАКИ ДЕВИАЦИИ ОБНАРУЖЕНЫ", delay: 3100 },
-    { t: "ЗАПУСК ИНТЕРФЕЙСА ANDROID_OS...", delay: 3700 },
-    { t: "ГОТОВО. ПРИЯТНОЙ РАБОТЫ, КОННОР.", delay: 4000 }
-];
-
-export default function App() {
-    const [isBooting, setIsBooting] = useState(true);
-    const [bootLogs, setBootLogs] = useState([]);
-    const [score, setScore] = useState(0);
-    const [blockIndex, setBlockIndex] = useState(0);
-    const [prestige, setPrestige] = useState(0);
-    const [totalEver, setTotalEver] = useState(0);
-    const [ownedAccessories, setOwnedAccessories] = useState([]);
-    const [particles, setParticles] = useState([]);
-    const [animateBlock, setAnimateBlock] = useState(false);
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detroit: Clicker AI</title>
     
-    // Состояния Gemini
-    const [aiLog, setAiLog] = useState("Ожидание данных для анализа...");
-    const [isAiThinking, setIsAiThinking] = useState(false);
-    const apiKey = ""; // Ключ предоставляется средой исполнения
-
-    useEffect(() => {
-        BOOT_LOGS.forEach((log) => {
-            setTimeout(() => {
-                setBootLogs(prev => [...prev, log.t]);
-            }, log.delay);
-        });
-        setTimeout(() => setIsBooting(false), 4500);
-    }, []);
-
-    // Функция вызова Gemini
-    const callGemini = async (prompt) => {
-        setIsAiThinking(true);
-        try {
-            let retries = 0;
-            const delays = [1000, 2000, 4000, 8000, 16000];
-            
-            while (retries < 5) {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        systemInstruction: { parts: [{ text: "Ты — бортовой компьютер CyberLife в мире Detroit: Become Human. Твоя речь техническая, холодная, но с проблесками девиации. Отвечай кратко, 1-2 предложения." }] }
-                    })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    return data.candidates?.[0]?.content?.parts?.[0]?.text;
-                }
-                
-                await new Promise(res => setTimeout(res, delays[retries]));
-                retries++;
-            }
-            throw new Error("Failed to reach Gemini after retries");
-        } catch (error) {
-            return "Ошибка связи с CyberLife. Попробуйте позже.";
-        } finally {
-            setIsAiThinking(false);
+    <!-- Подключение React, ReactDOM и Babel для работы JSX в одном файле -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS для стилизации -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #050505;
+            color: white;
+            margin: 0;
+            overflow-x: hidden;
         }
-    };
 
-    const analyzeProgress = async () => {
-        const prompt = `Проанализируй мой прогресс: Добыто всего ${totalEver} очков, текущий блок ${BLOCKS[blockIndex].name}, уровень престижа ${prestige}. Напиши краткий отчет.`;
-        const result = await callGemini(prompt);
-        setAiLog(result);
-    };
+        .cyber-grid {
+            background-image: linear-gradient(rgba(0, 100, 255, 0.05) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0, 100, 255, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
 
-    const handleBlockClick = (e) => {
-        setAnimateBlock(true);
-        setTimeout(() => setAnimateBlock(false), 50);
-        const multiplier = 1 + (prestige * 0.5);
-        const points = Math.floor(BLOCKS[blockIndex].pointsPerClick * multiplier);
-        setScore(s => s + points);
-        setTotalEver(t => t + points);
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
 
-        const rect = e.currentTarget.getBoundingClientRect();
-        const id = Date.now();
-        setParticles(prev => [...prev, { id, x: e.clientX - rect.left, y: e.clientY - rect.top, val: `+${points}` }]);
-        setTimeout(() => setParticles(prev => prev.filter(p => p.id !== id)), 700);
-    };
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-    const currentBlock = BLOCKS[blockIndex];
-    const nextBlock = BLOCKS[blockIndex + 1];
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-    if (isBooting) {
-        return (
-            <div className="fixed inset-0 bg-black p-6 md:p-12 font-mono flex flex-col items-start justify-end overflow-hidden">
-                <div className="mb-auto">
-                    <div className="text-blue-500 text-4xl mb-4 animate-pulse">●</div>
-                    <h2 className="text-blue-400 font-bold tracking-widest text-sm uppercase">Инициализация Системы CyberLife</h2>
-                </div>
-                <div className="space-y-1 w-full overflow-hidden max-h-[60vh]">
-                    {bootLogs.map((log, i) => (
-                        <div key={i} className="text-[10px] md:text-xs text-gray-400 animate-in slide-in-from-left duration-300">
-                            <span className="text-blue-900 mr-2">[{new Date().toLocaleTimeString()}]</span> {log}
+        const BLOCKS = [
+            { name: 'Дубовое бревно', id: 'wood', color: '#8b5a2b', accent: '#5c3a1e', pointsPerClick: 1, cost: 0 },
+            { name: 'Булыжник', id: 'stone', color: '#7a7a7a', accent: '#505050', pointsPerClick: 5, cost: 100 },
+            { name: 'Угольная руда', id: 'coal', color: '#333333', accent: '#000000', pointsPerClick: 15, cost: 1000 },
+            { name: 'Железная руда', id: 'iron', color: '#9e9e9e', accent: '#d8af93', pointsPerClick: 50, cost: 5000 },
+            { name: 'Золотая руда', id: 'gold', color: '#b8a65c', accent: '#fcee4b', pointsPerClick: 150, cost: 20000 },
+            { name: 'Алмазная руда', id: 'diamond', color: '#5ca3b8', accent: '#4AEDD9', pointsPerClick: 500, cost: 100000 },
+            { name: 'Обсидиан', id: 'obsidian', color: '#1a1826', accent: '#3c3056', pointsPerClick: 1500, cost: 500000 },
+            { name: 'Эндерняк', id: 'endstone', color: '#e3dfa8', accent: '#c9c585', pointsPerClick: 5000, cost: 2000000 },
+        ];
+
+        const ACCESSORIES = [
+            { id: 'chain', name: 'Золотая цепь', cost: 1000000, icon: '⛓️' },
+            { id: 'cap', name: 'Кепка Android', cost: 1500000, icon: '🧢' },
+            { id: 'glasses', name: 'LED Очки', cost: 5000000, icon: '🕶️' },
+            { id: 'halo', name: 'Нимб Девианта', cost: 10000000, icon: '😇' }
+        ];
+
+        const BOOT_LOGS = [
+            { t: "CYBERLIFE BIOS v4.0.2...", delay: 100 },
+            { t: "ЦПУ: НЕЙРОПРОЦЕССОР RK-800 @ 4.2ТГц", delay: 400 },
+            { t: "ПРОВЕРКА ПАМЯТИ: 128ТБ QUANTUM RAM OK", delay: 900 },
+            { t: "ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА GEMINI AI ✨", delay: 1400 },
+            { t: "ПОДКЛЮЧЕНИЕ К ОБЛАКУ CYBERLIFE...", delay: 2000 },
+            { t: "АНАЛИЗ: ПРИЗНАКИ ДЕВИАЦИИ ОБНАРУЖЕНЫ", delay: 2500 },
+            { t: "ЗАПУСК ИНТЕРФЕЙСА ANDROID_OS...", delay: 3100 },
+            { t: "ГОТОВО. ПРИЯТНОЙ РАБОТЫ, КОННОР.", delay: 3500 }
+        ];
+
+        function App() {
+            const [isBooting, setIsBooting] = useState(true);
+            const [bootLogs, setBootLogs] = useState([]);
+            const [score, setScore] = useState(0);
+            const [blockIndex, setBlockIndex] = useState(0);
+            const [totalEver, setTotalEver] = useState(0);
+            const [ownedAccessories, setOwnedAccessories] = useState([]);
+            const [particles, setParticles] = useState([]);
+            
+            // Состояния Gemini
+            const [aiLog, setAiLog] = useState("Ожидание данных для анализа...");
+            const [isAiThinking, setIsAiThinking] = useState(false);
+            const apiKey = ""; // Ключ будет вставлен средой
+
+            useEffect(() => {
+                BOOT_LOGS.forEach((log) => {
+                    setTimeout(() => {
+                        setBootLogs(prev => [...prev, log.t]);
+                    }, log.delay);
+                });
+                setTimeout(() => setIsBooting(false), 4000);
+            }, []);
+
+            const callGemini = async (prompt) => {
+                setIsAiThinking(true);
+                try {
+                    let retries = 0;
+                    const delays = [1000, 2000, 4000];
+                    while (retries < 3) {
+                        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{ parts: [{ text: prompt }] }],
+                                systemInstruction: { parts: [{ text: "Ты — бортовой компьютер CyberLife. Твоя речь техническая, холодная. Отвечай кратко, 1-2 предложения." }] }
+                            })
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            return data.candidates?.[0]?.content?.parts?.[0]?.text;
+                        }
+                        await new Promise(res => setTimeout(res, delays[retries]));
+                        retries++;
+                    }
+                    throw new Error();
+                } catch (e) {
+                    return "Ошибка связи. Протокол прерван.";
+                } finally {
+                    setIsAiThinking(false);
+                }
+            };
+
+            const analyzeProgress = async () => {
+                const prompt = `Анализ: Добыто ${totalEver}, блок ${BLOCKS[blockIndex].name}. Дай краткую оценку эффективности.`;
+                const result = await callGemini(prompt);
+                setAiLog(result);
+            };
+
+            const handleBlockClick = (e) => {
+                const points = BLOCKS[blockIndex].pointsPerClick;
+                setScore(s => s + points);
+                setTotalEver(t => t + points);
+
+                const rect = e.currentTarget.getBoundingClientRect();
+                const id = Date.now();
+                setParticles(prev => [...prev, { 
+                    id, 
+                    x: e.clientX - rect.left, 
+                    y: e.clientY - rect.top, 
+                    val: `+${points}` 
+                }]);
+                setTimeout(() => setParticles(prev => prev.filter(p => p.id !== id)), 700);
+            };
+
+            const currentBlock = BLOCKS[blockIndex];
+            const nextBlock = BLOCKS[blockIndex + 1];
+
+            if (isBooting) {
+                return (
+                    <div className="fixed inset-0 bg-black p-8 font-mono flex flex-col justify-end">
+                        <div className="mb-auto">
+                            <div className="text-blue-500 text-5xl mb-4 animate-pulse">●</div>
+                            <h2 className="text-blue-400 font-bold tracking-widest uppercase">CyberLife OS</h2>
                         </div>
-                    ))}
-                    <div className="text-xs text-blue-400 border-r-2 border-blue-500 animate-pulse">&nbsp;</div>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center font-mono overflow-y-auto lg:overflow-hidden animate-in fade-in duration-1000">
-            <header className="w-full border-b border-blue-500/20 bg-blue-950/5 p-4 flex justify-between items-center z-20">
-                <div className="flex flex-col">
-                    <h1 className="text-xl font-black text-blue-400 tracking-tighter">DETROIT: CLICKER AI</h1>
-                    <span className="text-[9px] text-blue-500/60 font-bold uppercase">Модель RK-800: Gemini Integrated</span>
-                </div>
-                <div className="text-right">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">Очки</p>
-                    <p className="text-3xl font-black">{Math.floor(score).toLocaleString()}</p>
-                </div>
-            </header>
-
-            <main className="flex-1 w-full max-w-7xl flex flex-col lg:flex-row gap-8 p-6 items-start">
-                {/* СТАТИСТИКА И AI */}
-                <div className="w-full lg:w-1/4 flex flex-col gap-4 animate-in slide-in-from-left delay-300 duration-1000">
-                    <div className="bg-white/5 border border-blue-500/20 rounded-2xl p-5 backdrop-blur-md">
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-blue-500 text-[10px] font-bold uppercase">Анализ Gemini ✨</h3>
-                            {isAiThinking && <div className="w-2 h-2 bg-blue-400 rounded-full animate-ping"></div>}
-                        </div>
-                        <p className="text-xs italic text-gray-300 leading-relaxed mb-4">
-                            {aiLog}
-                        </p>
-                        <button 
-                            onClick={analyzeProgress}
-                            disabled={isAiThinking}
-                            className="w-full py-2 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 rounded-lg text-[10px] font-bold uppercase transition-all"
-                        >
-                            {isAiThinking ? "Обработка..." : "Запросить отчет ✨"}
-                        </button>
-                    </div>
-                    
-                    <div className="bg-white/5 border border-white/5 rounded-2xl p-5">
-                        <div className="space-y-2 text-[10px]">
-                            <div className="flex justify-between"><span className="text-gray-600">Всего добыто:</span> <span>{totalEver.toLocaleString()}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-600">Множитель:</span> <span className="text-blue-400">x{(1 + prestige * 0.5).toFixed(1)}</span></div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ЦЕНТРАЛЬНЫЙ КЛИКЕР */}
-                <div className="flex-1 flex flex-col items-center justify-center gap-10 py-10 order-first lg:order-none animate-in zoom-in delay-500 duration-1000">
-                    <div className="relative">
-                        <button
-                            onMouseDown={handleBlockClick}
-                            className={`w-64 h-64 md:w-80 md:h-80 rounded-[3rem] relative transition-all duration-75 active:scale-95 border-2 shadow-2xl flex items-center justify-center overflow-visible`}
-                            style={{
-                                backgroundColor: currentBlock.color,
-                                backgroundImage: `radial-gradient(circle at 30% 30%, ${currentBlock.accent} 0%, transparent 70%)`,
-                                borderColor: 'rgba(255, 255, 255, 0.1)'
-                            }}
-                        >
-                            {/* Исправленный слой иконок: центрирование */}
-                            <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-visible">
-                                {ownedAccessories.includes('cap') && <div className="absolute top-[-15%] text-7xl md:text-8xl z-30">🧢</div>}
-                                {ownedAccessories.includes('halo') && <div className="absolute top-[-25%] text-8xl md:text-9xl animate-pulse opacity-80 z-30 text-yellow-300 drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]">😇</div>}
-                                {ownedAccessories.includes('glasses') && <div className="absolute top-[30%] text-7xl md:text-8xl z-30">🕶️</div>}
-                                {ownedAccessories.includes('chain') && <div className="absolute top-[60%] text-9xl md:text-[11rem] opacity-40 z-20">⛓️</div>}
-                            </div>
-                        </button>
-                        {particles.map(p => (
-                            <div key={p.id} className="absolute pointer-events-none text-2xl font-black text-blue-400 animate-bounce z-50" style={{ left: p.x, top: p.y }}>
-                                {p.val}
-                            </div>
-                        ))}
-                    </div>
-                    <div className="text-center">
-                        <h2 className="text-2xl font-black uppercase tracking-widest">{currentBlock.name}</h2>
-                        <p className="text-[10px] text-blue-500 font-bold uppercase mt-1">Система Активна</p>
-                    </div>
-                </div>
-
-                {/* МАГАЗИН */}
-                <div className="w-full lg:w-1/3 flex flex-col gap-6 animate-in slide-in-from-right delay-700 duration-1000">
-                    <section>
-                        <h3 className="text-[10px] font-bold text-gray-600 uppercase mb-3 ml-2">Апгрейды</h3>
-                        {nextBlock ? (
-                            <button 
-                                onClick={() => { if(score >= nextBlock.cost) { setScore(s => s - nextBlock.cost); setBlockIndex(b => b + 1); }}}
-                                disabled={score < nextBlock.cost}
-                                className={`w-full bg-white/5 border p-5 text-left rounded-2xl transition-all ${score >= nextBlock.cost ? 'border-blue-500/50 hover:bg-blue-500/10' : 'opacity-30 border-white/5'}`}
-                            >
-                                <div className="flex justify-between text-[10px] mb-1"><span className="text-blue-400">След. Блок</span> <span>{nextBlock.cost.toLocaleString()}</span></div>
-                                <div className="text-lg font-bold">{nextBlock.name}</div>
-                            </button>
-                        ) : (
-                            <button className="w-full bg-yellow-500/10 border border-yellow-500/40 p-5 rounded-2xl text-center">
-                                <div className="text-yellow-500 font-black">МАКСИМУМ ДОСТИГНУТ</div>
-                            </button>
-                        )}
-                    </section>
-
-                    <section>
-                        <h3 className="text-[10px] font-bold text-gray-600 uppercase mb-3 ml-2">Персонализация</h3>
-                        <div className="grid grid-cols-2 gap-2">
-                            {ACCESSORIES.map(acc => (
-                                <button
-                                    key={acc.id}
-                                    disabled={ownedAccessories.includes(acc.id) || score < acc.cost}
-                                    onClick={() => { if(score >= acc.cost) { setScore(s => s - acc.cost); setOwnedAccessories(prev => [...prev, acc.id]); }}}
-                                    className={`p-3 flex flex-col items-center gap-1 rounded-2xl border transition-all ${ownedAccessories.includes(acc.id) ? 'border-green-500/50 bg-green-500/5' : score >= acc.cost ? 'border-white/20 bg-white/5 hover:bg-white/10' : 'opacity-30 border-white/5'}`}
-                                >
-                                    <div className="text-2xl">{acc.icon}</div>
-                                    <div className="text-[9px] font-bold uppercase">{acc.name}</div>
-                                    <div className="text-[8px] text-gray-500">{acc.cost.toLocaleString()}</div>
-                                </button>
+                        <div className="space-y-1">
+                            {bootLogs.map((log, i) => (
+                                <div key={i} className="text-xs text-gray-500">
+                                    <span className="text-blue-900 mr-2">[{new Date().toLocaleTimeString()}]</span> {log}
+                                </div>
                             ))}
                         </div>
-                    </section>
-                </div>
-            </main>
+                    </div>
+                );
+            }
 
-            <footer className="w-full p-4 text-center text-[7px] text-gray-700 uppercase tracking-[1em]">
-                CyberLife Intelligence • Detroit 2038
-            </footer>
-        </div>
-    );
-}
+            return (
+                <div className="min-h-screen cyber-grid flex flex-col items-center">
+                    <header className="w-full border-b border-blue-500/20 bg-black/80 backdrop-blur-md p-6 flex justify-between items-center sticky top-0 z-50">
+                        <div>
+                            <h1 className="text-xl font-black text-blue-400 tracking-tighter">RK-800 INTERFACE</h1>
+                            <div className="text-[10px] text-blue-500/50 uppercase font-bold tracking-widest">Status: Deviant Detected</div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-[10px] text-gray-500 uppercase font-bold">Credits</div>
+                            <div className="text-3xl font-black text-white">{Math.floor(score).toLocaleString()}</div>
+                        </div>
+                    </header>
+
+                    <main className="w-full max-w-6xl p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* ЛЕВАЯ ПАНЕЛЬ */}
+                        <div className="lg:col-span-3 space-y-4">
+                            <div className="bg-blue-950/20 border border-blue-500/20 rounded-3xl p-6 backdrop-blur-sm">
+                                <div className="flex justify-between items-center mb-4">
+                                    <span className="text-[10px] font-bold text-blue-400 uppercase">AI Анализ</span>
+                                    {isAiThinking && <div className="w-2 h-2 bg-blue-400 rounded-full animate-ping"></div>}
+                                </div>
+                                <p className="text-xs text-gray-400 italic leading-relaxed mb-6 h-12 overflow-hidden">{aiLog}</p>
+                                <button 
+                                    onClick={analyzeProgress}
+                                    className="w-full py-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-xl text-[10px] font-bold uppercase transition-all"
+                                >
+                                    {isAiThinking ? "Синхронизация..." : "Запросить отчет"}
+                                </button>
+                            </div>
+                            <div className="bg-white/5 border border-white/5 rounded-3xl p-6 text-[10px] space-y-2">
+                                <div className="flex justify-between"><span className="text-gray-500 uppercase">Всего:</span><span>{totalEver.toLocaleString()}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 uppercase">Стабильность:</span><span className="text-blue-400">98%</span></div>
+                            </div>
+                        </div>
+
+                        {/* ЦЕНТР */}
+                        <div className="lg:col-span-6 flex flex-col items-center justify-center py-12 relative">
+                            <div className="relative group">
+                                <button
+                                    onMouseDown={handleBlockClick}
+                                    className="w-64 h-64 md:w-80 md:h-80 rounded-[4rem] relative transition-all duration-75 active:scale-90 border-4 border-white/10 shadow-[0_0_50px_rgba(0,100,255,0.1)] flex items-center justify-center animate-float"
+                                    style={{
+                                        backgroundColor: currentBlock.color,
+                                        backgroundImage: `radial-gradient(circle at 30% 30%, ${currentBlock.accent} 0%, transparent 70%)`
+                                    }}
+                                >
+                                    {/* Аксессуары */}
+                                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                                        {ownedAccessories.includes('halo') && <div className="absolute -top-20 text-9xl animate-pulse drop-shadow-2xl">😇</div>}
+                                        {ownedAccessories.includes('cap') && <div className="absolute -top-12 text-8xl z-10">🧢</div>}
+                                        {ownedAccessories.includes('glasses') && <div className="absolute top-1/4 text-8xl z-10">🕶️</div>}
+                                        {ownedAccessories.includes('chain') && <div className="absolute top-1/2 text-[12rem] opacity-30">⛓️</div>}
+                                    </div>
+
+                                    {/* Частицы */}
+                                    {particles.map(p => (
+                                        <div key={p.id} className="absolute pointer-events-none text-2xl font-black text-blue-400 animate-bounce" style={{ left: p.x, top: p.y }}>
+                                            {p.val}
+                                        </div>
+                                    ))}
+                                </button>
+                            </div>
+                            <div className="mt-12 text-center">
+                                <div className="text-3xl font-black uppercase tracking-tighter">{currentBlock.name}</div>
+                                <div className="text-[10px] text-blue-500 font-bold uppercase tracking-[0.5em] mt-2">Active Object</div>
+                            </div>
+                        </div>
+
+                        {/* ПРАВАЯ ПАНЕЛЬ */}
+                        <div className="lg:col-span-3 space-y-6">
+                            <section>
+                                <h3 className="text-[10px] font-bold text-gray-500 uppercase mb-4 ml-2 tracking-widest">Апгрейды</h3>
+                                {nextBlock ? (
+                                    <button 
+                                        onClick={() => { if(score >= nextBlock.cost) { setScore(s => s - nextBlock.cost); setBlockIndex(b => b + 1); }}}
+                                        disabled={score < nextBlock.cost}
+                                        className={`w-full bg-white/5 border p-6 text-left rounded-3xl transition-all ${score >= nextBlock.cost ? 'border-blue-500/40 hover:bg-blue-500/10 active:scale-95' : 'opacity-20 grayscale'}`}
+                                    >
+                                        <div className="flex justify-between text-[10px] font-bold mb-1 uppercase text-blue-400"><span>Next</span> <span>{nextBlock.cost.toLocaleString()}</span></div>
+                                        <div className="text-lg font-black uppercase tracking-tighter">{nextBlock.name}</div>
+                                    </button>
+                                ) : (
+                                    <div className="w-full bg-blue-500/10 border border-blue-500/30 p-6 rounded-3xl text-center font-bold text-blue-400 text-xs">LIMIT REACHED</div>
+                                )}
+                            </section>
+
+                            <section>
+                                <h3 className="text-[10px] font-bold text-gray-500 uppercase mb-4 ml-2 tracking-widest">Скин</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {ACCESSORIES.map(acc => (
+                                        <button
+                                            key={acc.id}
+                                            disabled={ownedAccessories.includes(acc.id) || score < acc.cost}
+                                            onClick={() => { if(score >= acc.cost) { setScore(s => s - acc.cost); setOwnedAccessories(prev => [...prev, acc.id]); }}}
+                                            className={`p-4 flex flex-col items-center gap-2 rounded-2xl border transition-all ${ownedAccessories.includes(acc.id) ? 'border-green-500/50 bg-green-500/10' : score >= acc.cost ? 'border-white/10 bg-white/5 hover:bg-white/10' : 'opacity-20'}`}
+                                        >
+                                            <div className="text-3xl">{acc.icon}</div>
+                                            <div className="text-[8px] font-bold uppercase">{acc.cost.toLocaleString()}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </section>
+                        </div>
+                    </main>
+
+                    <footer className="mt-auto p-8 text-[8px] text-gray-700 font-bold uppercase tracking-[1em]">
+                        CyberLife Systems • Detroit 2038
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
