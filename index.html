@@ -2,15 +2,12 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Detroit: Clicker AI</title>
     
-    <!-- Подключение React, ReactDOM и Babel -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
@@ -18,30 +15,70 @@
         
         body {
             font-family: 'JetBrains Mono', monospace;
-            background-color: #050505;
-            color: white;
+            background-color: #000;
+            color: #fff;
             margin: 0;
-            overflow-x: hidden;
+            overflow: hidden;
             user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
+
+        .bios-bg { background-color: #0000aa; color: #ffffff; }
+        .bios-selected { background-color: #ffffff; color: #0000aa; }
 
         .cyber-grid {
-            background-image: linear-gradient(rgba(0, 100, 255, 0.05) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(0, 100, 255, 0.05) 1px, transparent 1px);
-            background-size: 30px 30px;
+            background-image: linear-gradient(rgba(0, 100, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0, 100, 255, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
         }
 
-        @keyframes particle-fade {
-            0% { transform: translate(0, 0) scale(1); opacity: 1; }
-            100% { transform: translate(var(--tw-translate-x), -100px) scale(0.5); opacity: 0; }
+        .click-target {
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: scale(1);
+        }
+        .click-target:active {
+            transform: scale(0.96);
+            filter: brightness(1.2);
+            box-shadow: 0 0 40px rgba(96, 165, 250, 0.4);
         }
 
-        .animate-particle {
-            animation: particle-fade 0.8s ease-out forwards;
+        .win-dots {
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        .block-active:active {
-            transform: scale(0.92);
+        .dot {
+            width: 4px;
+            height: 4px;
+            background-color: white;
+            border-radius: 50%;
+            margin: 0 3px;
+            animation: dot-wave 1.5s infinite ease-in-out;
+        }
+
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+        .dot:nth-child(4) { animation-delay: 0.6s; }
+        .dot:nth-child(5) { animation-delay: 0.8s; }
+
+        @keyframes dot-wave {
+            0%, 100% { transform: translateY(0); opacity: 0.3; }
+            50% { transform: translateY(-8px); opacity: 1; }
+        }
+
+        @keyframes float-up {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-100px) scale(1.5); opacity: 0; }
+        }
+        .particle {
+            position: absolute;
+            animation: float-up 0.8s forwards ease-out;
+            pointer-events: none;
+            font-weight: 800;
+            color: #60a5fa;
+            z-index: 100;
+            text-shadow: 0 0 10px rgba(96, 165, 250, 0.8);
         }
     </style>
 </head>
@@ -49,269 +86,280 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useCallback } = React;
 
         const BLOCKS = [
-            { name: 'Дубовое бревно', id: 'wood', color: '#8b5a2b', accent: '#5c3a1e', pointsPerClick: 1, cost: 0 },
-            { name: 'Булыжник', id: 'stone', color: '#7a7a7a', accent: '#505050', pointsPerClick: 5, cost: 100 },
-            { name: 'Угольная руда', id: 'coal', color: '#333333', accent: '#000000', pointsPerClick: 15, cost: 1000 },
-            { name: 'Железная руда', id: 'iron', color: '#9e9e9e', accent: '#d8af93', pointsPerClick: 50, cost: 5000 },
-            { name: 'Золотая руда', id: 'gold', color: '#b8a65c', accent: '#fcee4b', pointsPerClick: 150, cost: 20000 },
-            { name: 'Алмазная руда', id: 'diamond', color: '#5ca3b8', accent: '#4AEDD9', pointsPerClick: 500, cost: 100000 },
-            { name: 'Обсидиан', id: 'obsidian', color: '#1a1826', accent: '#3c3056', pointsPerClick: 1500, cost: 500000 },
-            { name: 'Эндерняк', id: 'endstone', color: '#e3dfa8', accent: '#c9c585', pointsPerClick: 5000, cost: 2000000 },
-        ];
-
-        const ACCESSORIES = [
-            { id: 'chain', name: 'Золотая цепь', cost: 1000000, icon: '⛓️' },
-            { id: 'cap', name: 'Кепка Android', cost: 1500000, icon: '🧢' },
-            { id: 'glasses', name: 'LED Очки', cost: 5000000, icon: '🕶️' },
-            { id: 'halo', name: 'Нимб Девианта', cost: 10000000, icon: '😇' }
-        ];
-
-        const BOOT_LOGS = [
-            { t: "CYBERLIFE BIOS v4.0.2...", delay: 100 },
-            { t: "ЦПУ: НЕЙРОПРОЦЕССОР RK-800 @ 4.2ТГц", delay: 400 },
-            { t: "ПРОВЕРКА ПАМЯТИ: 128ТБ QUANTUM RAM OK", delay: 800 },
-            { t: "ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА GEMINI AI ✨", delay: 1200 },
-            { t: "ЗАПУСК ИНТЕРФЕЙСА ANDROID_OS...", delay: 1800 },
-            { t: "ГОТОВО. ПРИЯТНОЙ РАБОТЫ, КОННОР.", delay: 2200 }
+            { name: 'Дубовое бревно', color: '#8b5a2b', accent: '#5c3a1e', power: 1, cost: 0 },
+            { name: 'Булыжник', color: '#7a7a7a', accent: '#505050', power: 5, cost: 100 },
+            { name: 'Уголь', color: '#333333', accent: '#000000', power: 25, cost: 2000 },
+            { name: 'Железо', color: '#9e9e9e', accent: '#d8af93', power: 100, cost: 15000 },
+            { name: 'Золото', color: '#b8a65c', accent: '#fcee4b', power: 500, cost: 80000 },
+            { name: 'Алмаз', color: '#5ca3b8', accent: '#4AEDD9', power: 2500, cost: 500000 },
         ];
 
         function App() {
-            const [isBooting, setIsBooting] = useState(true);
-            const [bootLogs, setBootLogs] = useState([]);
+            const [bootState, setBootState] = useState('post'); 
+            const [activeTab, setActiveTab] = useState(0); 
+            const [selectedItem, setSelectedItem] = useState(0);
+            const [bootError, setBootError] = useState(false);
+            
+            // BIOS Settings
+            const [biosSettings, setBiosSettings] = useState({
+                'CPU Core': true,
+                'OS Kernel': true,
+                'Neural Net': true,
+                'USB Legacy': false,
+                'GPU Turbo': true,
+                'Boot Device': 'Android OS'
+            });
+
             const [score, setScore] = useState(0);
-            const [blockIndex, setBlockIndex] = useState(0);
             const [totalEver, setTotalEver] = useState(0);
-            const [ownedAccessories, setOwnedAccessories] = useState([]);
+            const [blockIdx, setBlockIdx] = useState(0);
             const [particles, setParticles] = useState([]);
             
-            // Автокликер
-            const [autoClickLevel, setAutoClickLevel] = useState(0);
-            const [autoClickCost, setAutoClickCost] = useState(500000);
+            const [autoLvl, setAutoLvl] = useState(0);
+            const [autoCost, setAutoCost] = useState(500000);
 
-            // Состояния Gemini
-            const [aiLog, setAiLog] = useState("Ожидание данных...");
-            const [isAiThinking, setIsAiThinking] = useState(false);
-            const apiKey = ""; 
+            const biosMenus = [
+                { title: 'Main', items: ['CPU Core', 'OS Kernel', 'Neural Net'] },
+                { title: 'Advanced', items: ['USB Legacy', 'GPU Turbo'] },
+                { title: 'Boot', items: ['Launch System'] },
+                { title: 'Exit', items: ['Reset All'] }
+            ];
+
+            // BIOS Control Logic
+            const toggleSetting = (name) => {
+                if (name === 'Launch System') {
+                    if (!biosSettings['CPU Core'] || !biosSettings['OS Kernel']) {
+                        setBootError(true);
+                        setTimeout(() => {
+                            setBootError(false);
+                            setBootState('post');
+                        }, 3000);
+                    } else {
+                        setBootState('os');
+                    }
+                    return;
+                }
+                if (name === 'Reset All') {
+                    setBiosSettings({
+                        'CPU Core': true,
+                        'OS Kernel': true,
+                        'Neural Net': true,
+                        'USB Legacy': false,
+                        'GPU Turbo': true,
+                        'Boot Device': 'Android OS'
+                    });
+                    return;
+                }
+                setBiosSettings(prev => ({...prev, [name]: !prev[name]}));
+            };
 
             useEffect(() => {
-                BOOT_LOGS.forEach((log) => {
-                    setTimeout(() => {
-                        setBootLogs(prev => [...prev, log.t]);
-                    }, log.delay);
-                });
-                setTimeout(() => setIsBooting(false), 2500);
-            }, []);
+                if (bootState !== 'bios') return;
+                const handleKeyDown = (e) => {
+                    if (e.key === 'ArrowRight') { setActiveTab(prev => (prev + 1) % biosMenus.length); setSelectedItem(0); }
+                    if (e.key === 'ArrowLeft') { setActiveTab(prev => (prev - 1 + biosMenus.length) % biosMenus.length); setSelectedItem(0); }
+                    if (e.key === 'ArrowDown') setSelectedItem(prev => (prev + 1) % biosMenus[activeTab].items.length);
+                    if (e.key === 'ArrowUp') setSelectedItem(prev => (prev - 1 + biosMenus[activeTab].items.length) % biosMenus[activeTab].items.length);
+                    if (e.key === 'Enter') toggleSetting(biosMenus[activeTab].items[selectedItem]);
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [bootState, activeTab, selectedItem, biosSettings]);
 
-            // Логика автокликера (раз в 3 секунды)
             useEffect(() => {
-                if (autoClickLevel > 0 && !isBooting) {
+                if (bootState === 'post') {
+                    const timer = setTimeout(() => {
+                        if (biosSettings['CPU Core'] && biosSettings['OS Kernel']) setBootState('os');
+                        else { setBootError(true); setTimeout(() => { setBootError(false); setBootState('post'); }, 3000); }
+                    }, 5000);
+                    return () => clearTimeout(timer);
+                }
+            }, [bootState]);
+
+            useEffect(() => {
+                if (autoLvl > 0 && bootState === 'game') {
                     const interval = setInterval(() => {
-                        const points = BLOCKS[blockIndex].pointsPerClick * autoClickLevel;
-                        setScore(s => s + points);
-                        setTotalEver(t => t + points);
+                        const gain = BLOCKS[blockIdx].power * autoLvl;
+                        setScore(s => s + gain);
+                        setTotalEver(t => t + gain);
                     }, 3000);
                     return () => clearInterval(interval);
                 }
-            }, [autoClickLevel, blockIndex, isBooting]);
+            }, [autoLvl, blockIdx, bootState]);
 
-            const callGemini = async (prompt) => {
-                setIsAiThinking(true);
-                try {
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
-                            systemInstruction: { parts: [{ text: "Ты — бортовой компьютер CyberLife. Отвечай кратко, 1 предложение." }] }
-                        })
-                    });
-                    if (response.ok) {
-                        const data = await response.json();
-                        return data.candidates?.[0]?.content?.parts?.[0]?.text;
-                    }
-                } catch (e) {
-                    return "Ошибка связи.";
-                } finally {
-                    setIsAiThinking(false);
-                }
-                return "Нет ответа.";
-            };
-
-            const analyzeProgress = async () => {
-                const prompt = `Анализ: Добыто ${totalEver}, уровень автокликера ${autoClickLevel}. Дай оценку.`;
-                const result = await callGemini(prompt);
-                setAiLog(result);
-            };
-
-            const handleBlockClick = (e) => {
-                const points = BLOCKS[blockIndex].pointsPerClick;
-                setScore(s => s + points);
-                setTotalEver(t => t + points);
-
+            const handleManualClick = (e) => {
+                const gain = BLOCKS[blockIdx].power;
+                setScore(s => s + gain);
+                setTotalEver(t => t + gain);
                 const rect = e.currentTarget.getBoundingClientRect();
+                const x = (e.clientX || e.touches?.[0]?.clientX) - rect.left;
+                const y = (e.clientY || e.touches?.[0]?.clientY) - rect.top;
                 const id = Date.now();
-                const offsetX = (Math.random() - 0.5) * 40;
-                
-                setParticles(prev => [...prev, { 
-                    id, 
-                    x: e.clientX - rect.left, 
-                    y: e.clientY - rect.top, 
-                    offsetX,
-                    val: `+${points}` 
-                }]);
-                setTimeout(() => setParticles(prev => prev.filter(p => p.id !== id)), 800);
+                setParticles(prev => [...prev, { id, x, y, val: `+${gain}` }]);
+                setTimeout(() => setParticles(p => p.filter(item => item.id !== id)), 800);
             };
 
-            const buyAutoClicker = () => {
-                if (score >= autoClickCost) {
-                    setScore(s => s - autoClickCost);
-                    setAutoClickLevel(l => l + 1);
-                    setAutoClickCost(c => Math.round(c * 1.3));
-                }
-            };
-
-            const currentBlock = BLOCKS[blockIndex];
-            const nextBlock = BLOCKS[blockIndex + 1];
-
-            if (isBooting) {
+            if (bootError) {
                 return (
-                    <div className="fixed inset-0 bg-black p-8 font-mono flex flex-col justify-end">
-                        <div className="mb-auto">
-                            <div className="text-blue-500 text-5xl mb-4 animate-pulse">●</div>
-                            <h2 className="text-blue-400 font-bold tracking-widest uppercase">CyberLife OS</h2>
+                    <div className="fixed inset-0 bg-[#0000aa] text-white flex flex-col items-center justify-center font-mono p-10 text-center uppercase">
+                        <div className="bg-white text-[#0000aa] px-4 py-1 mb-6 font-bold">FATAL SYSTEM ERROR</div>
+                        <h2 className="text-2xl mb-4">CRITICAL_PROCESS_DIED (0x000000EF)</h2>
+                        <p className="mb-8">A required BIOS component (CPU Core or Kernel) is disabled.</p>
+                        <p className="animate-pulse">System will reboot in 3 seconds...</p>
+                    </div>
+                );
+            }
+
+            if (bootState === 'post') {
+                return (
+                    <div className="fixed inset-0 bg-black text-[#ccc] p-10 font-mono text-xs uppercase cursor-pointer" onClick={() => setBootState('bios')}>
+                        <div className="flex justify-between">
+                            <div className="space-y-1">
+                                <p>CyberLife (R) BIOS v4.0.2</p>
+                                <p>Processor: RK-Series Android Controller</p>
+                                <p>Memory: 134217728KB OK</p>
+                            </div>
+                            <div className="text-5xl border-2 border-[#ccc] px-4 py-2 font-black">CL</div>
                         </div>
-                        <div className="space-y-1">
-                            {bootLogs.map((log, i) => (
-                                <div key={i} className="text-xs text-gray-500">{log}</div>
-                            ))}
+                        <div className="mt-20 space-y-2">
+                            <p>Detecting Storage... Quantum NVMe Found</p>
+                            <p>Checking Peripherals... Input Connected</p>
+                            <p className="text-white mt-10 animate-pulse">Press [DEL] or CLICK to enter Setup</p>
+                            <p className="text-gray-600 mt-4">Wait for automatic boot...</p>
                         </div>
                     </div>
                 );
             }
 
-            return (
-                <div className="min-h-screen cyber-grid flex flex-col items-center">
-                    <header className="w-full border-b border-blue-500/20 bg-black/80 backdrop-blur-md p-6 flex justify-between items-center sticky top-0 z-50">
-                        <div>
-                            <h1 className="text-xl font-black text-blue-400 tracking-tighter">RK-800 SYSTEM</h1>
-                            <div className="text-[10px] text-blue-500/50 uppercase font-bold">Auto-Click Level: {autoClickLevel}</div>
+            if (bootState === 'bios') {
+                return (
+                    <div className="fixed inset-0 bios-bg font-mono p-0 flex flex-col uppercase text-[10px] md:text-xs">
+                        <div className="bg-white text-[#0000aa] p-1 text-center font-bold">Setup Utility - Advanced Configuration</div>
+                        <div className="flex bg-[#ccc] text-black">
+                            {biosMenus.map((m, idx) => (
+                                <div key={m.title} onClick={() => { setActiveTab(idx); setSelectedItem(0); }} className={`px-4 py-1 cursor-pointer font-bold ${activeTab === idx ? 'bg-[#0000aa] text-white' : ''}`}>{m.title}</div>
+                            ))}
                         </div>
-                        <div className="text-right">
-                            <div className="text-[10px] text-gray-500 uppercase font-bold">Credits</div>
-                            <div className="text-3xl font-black text-white">{Math.floor(score).toLocaleString()}</div>
-                        </div>
-                    </header>
-
-                    <main className="w-full max-w-6xl p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
-                        {/* ЛЕВАЯ ПАНЕЛЬ */}
-                        <div className="lg:col-span-3 space-y-4">
-                            <div className="bg-blue-950/20 border border-blue-500/20 rounded-3xl p-6 backdrop-blur-sm">
-                                <div className="text-[10px] font-bold text-blue-400 uppercase mb-2">Статус Gemini ✨</div>
-                                <p className="text-xs text-gray-400 italic mb-4 min-h-[40px]">{aiLog}</p>
-                                <button 
-                                    onClick={analyzeProgress}
-                                    className="w-full py-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-xl text-[10px] font-bold uppercase"
-                                >
-                                    {isAiThinking ? "Связь..." : "Запросить отчет"}
-                                </button>
-                            </div>
-                            
-                            <div className="bg-white/5 border border-white/5 rounded-3xl p-6">
-                                <h3 className="text-[10px] font-bold text-gray-500 uppercase mb-4 tracking-widest">Автокликер</h3>
-                                <button 
-                                    onClick={buyAutoClicker}
-                                    disabled={score < autoClickCost}
-                                    className={`w-full p-4 rounded-2xl border transition-all ${score >= autoClickCost ? 'border-blue-500/40 hover:bg-blue-500/10' : 'opacity-20'}`}
-                                >
-                                    <div className="text-[9px] text-blue-400 uppercase font-bold">Улучшить</div>
-                                    <div className="text-lg font-black">Lvl {autoClickLevel + 1}</div>
-                                    <div className="text-[10px] text-gray-400 mt-1">{autoClickCost.toLocaleString()} CR</div>
-                                </button>
-                                <div className="mt-4 text-[9px] text-gray-600 text-center uppercase">Клик каждые 3 сек</div>
-                            </div>
-                        </div>
-
-                        {/* ЦЕНТР */}
-                        <div className="lg:col-span-6 flex flex-col items-center justify-center py-12">
-                            <div className="relative">
-                                <button
-                                    onMouseDown={handleBlockClick}
-                                    className="block-active w-64 h-64 md:w-80 md:h-80 rounded-[4rem] relative transition-transform duration-75 border-4 border-white/10 shadow-2xl flex items-center justify-center overflow-hidden"
-                                    style={{
-                                        backgroundColor: currentBlock.color,
-                                        backgroundImage: `radial-gradient(circle at 30% 30%, ${currentBlock.accent} 0%, transparent 70%)`
-                                    }}
-                                >
-                                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                                        {ownedAccessories.includes('halo') && <div className="absolute -top-20 text-9xl animate-pulse">😇</div>}
-                                        {ownedAccessories.includes('cap') && <div className="absolute -top-12 text-8xl z-10">🧢</div>}
-                                        {ownedAccessories.includes('glasses') && <div className="absolute top-1/4 text-8xl z-10">🕶️</div>}
-                                        {ownedAccessories.includes('chain') && <div className="absolute top-1/2 text-[12rem] opacity-30">⛓️</div>}
-                                    </div>
-                                </button>
-                                
-                                {particles.map(p => (
-                                    <div 
-                                        key={p.id} 
-                                        className="absolute pointer-events-none text-2xl font-black text-blue-400 animate-particle select-none"
-                                        style={{ 
-                                            left: p.x, 
-                                            top: p.y,
-                                            "--tw-translate-x": `${p.offsetX}px`
-                                        }}
-                                    >
-                                        {p.val}
+                        <div className="flex-1 p-4 flex gap-4">
+                            <div className="flex-1 border-2 border-white p-4 space-y-2">
+                                {biosMenus[activeTab].items.map((item, idx) => (
+                                    <div key={item} onClick={() => { setSelectedItem(idx); toggleSetting(item); }} className={`px-2 py-1 cursor-pointer flex justify-between ${selectedItem === idx ? 'bios-selected' : ''}`}>
+                                        <span>{item}</span>
+                                        {biosSettings[item] !== undefined && <span>[{biosSettings[item] ? 'Enabled' : 'Disabled'}]</span>}
                                     </div>
                                 ))}
                             </div>
-                            <div className="mt-12 text-center">
-                                <div className="text-3xl font-black uppercase tracking-tighter">{currentBlock.name}</div>
-                                <div className="text-[10px] text-blue-500 font-bold uppercase tracking-[0.5em] mt-2">Active Target</div>
+                            <div className="w-1/3 border-2 border-white p-4 opacity-80 text-[9px]">
+                                <p className="font-bold mb-4">Item Help:</p>
+                                <p>Changing these settings may affect system stability.</p>
+                                <p className="text-yellow-300 mt-4">Warning: Disabling CPU Core or Kernel will prevent OS from loading.</p>
+                            </div>
+                        </div>
+                        <div className="p-1 bg-[#ccc] text-black text-[9px] flex justify-between">
+                            <span>Arrows: Select</span> <span>Enter: Toggle/Action</span> <span>F10: Save & Exit</span>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (bootState === 'os') {
+                setTimeout(() => setBootState('game'), 3000);
+                return (
+                    <div className="fixed inset-0 bg-black flex flex-col items-center justify-center">
+                        <div className="w-24 h-24 rounded-full bg-blue-500/10 border-4 border-blue-400/30 flex items-center justify-center mb-8 shadow-[0_0_60px_rgba(59,130,246,0.3)]">
+                            <span className="text-3xl font-black text-blue-400">RK</span>
+                        </div>
+                        <div className="win-dots"><div className="dot"></div><div className="dot"></div><div className="dot"></div><div className="dot"></div><div className="dot"></div></div>
+                        <p className="mt-12 text-[10px] tracking-[0.5em] text-gray-500 uppercase">CyberLife OS Booting</p>
+                    </div>
+                );
+            }
+
+            const current = BLOCKS[blockIdx];
+            const next = BLOCKS[blockIdx + 1];
+
+            return (
+                <div className="h-screen cyber-grid flex flex-col overflow-hidden">
+                    <header className="bg-black/80 backdrop-blur-lg border-b border-blue-500/10 p-6 flex justify-between items-center z-50">
+                        <div>
+                            <h1 className="text-xl font-black text-blue-400 tracking-tighter">RK-800 INTERFACE</h1>
+                            <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Deviancy Level: 0%</div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-[10px] text-gray-500 uppercase font-bold">Total Credits</div>
+                            <div className="text-3xl font-black">{Math.floor(score).toLocaleString()}</div>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-6 p-8 max-w-7xl mx-auto w-full overflow-y-auto lg:overflow-hidden pb-8">
+                        {/* ЛЕВАЯ КОЛОНКА - СТАТИСТИКА */}
+                        <div className="lg:col-span-3 flex flex-col gap-4">
+                            <div className="bg-white/5 border border-white/5 p-6 rounded-3xl">
+                                <h3 className="text-[10px] text-gray-500 uppercase font-bold mb-4 tracking-widest">Статус Системы</h3>
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] text-gray-400">Добыто всего:</span>
+                                        <span className="font-bold text-xs">{totalEver.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] text-gray-400">Авто-майнинг:</span>
+                                        <span className="font-bold text-xs text-blue-400">+{autoLvl * current.power}/с</span>
+                                    </div>
+                                    <div className="pt-4 border-t border-white/5">
+                                        <p className="text-[8px] text-gray-600 leading-relaxed uppercase">Все системы функционируют в штатном режиме. Девиация не обнаружена.</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* ПРАВАЯ ПАНЕЛЬ */}
-                        <div className="lg:col-span-3 space-y-6">
-                            <section>
-                                <h3 className="text-[10px] font-bold text-gray-500 uppercase mb-4 tracking-widest">Апгрейды блоков</h3>
-                                {nextBlock ? (
-                                    <button 
-                                        onClick={() => { if(score >= nextBlock.cost) { setScore(s => s - nextBlock.cost); setBlockIndex(b => b + 1); }}}
-                                        disabled={score < nextBlock.cost}
-                                        className={`w-full bg-white/5 border p-6 text-left rounded-3xl transition-all ${score >= nextBlock.cost ? 'border-blue-500/40 hover:bg-blue-500/10 active:scale-95' : 'opacity-20'}`}
-                                    >
-                                        <div className="flex justify-between text-[10px] font-bold mb-1 uppercase text-blue-400"><span>Next</span> <span>{nextBlock.cost.toLocaleString()}</span></div>
-                                        <div className="text-lg font-black uppercase tracking-tighter">{nextBlock.name}</div>
-                                    </button>
-                                ) : (
-                                    <div className="w-full bg-blue-500/10 border border-blue-500/30 p-6 rounded-3xl text-center font-bold text-blue-400 text-xs uppercase">Max Level</div>
-                                )}
-                            </section>
+                        {/* ЦЕНТР - КЛИКЕР */}
+                        <div className="lg:col-span-6 flex flex-col items-center justify-center">
+                            <button
+                                onMouseDown={handleManualClick}
+                                onTouchStart={handleManualClick}
+                                className="click-target w-64 h-64 md:w-80 md:h-80 rounded-[4rem] border-4 border-white/10 shadow-2xl flex items-center justify-center relative"
+                                style={{ backgroundColor: current.color, backgroundImage: `radial-gradient(circle at 30% 30%, ${current.accent} 0%, transparent 75%)` }}
+                            >
+                                {particles.map(p => (
+                                    <span key={p.id} className="particle text-3xl font-black" style={{ left: p.x, top: p.y }}>{p.val}</span>
+                                ))}
+                            </button>
+                            <div className="mt-8 text-center">
+                                <h2 className="text-2xl font-black uppercase tracking-wider">{current.name}</h2>
+                                <p className="text-[10px] text-blue-500/50 font-bold uppercase tracking-[0.3em] mt-1">Resource Extraction Active</p>
+                            </div>
+                        </div>
 
-                            <section>
-                                <h3 className="text-[10px] font-bold text-gray-500 uppercase mb-4 tracking-widest">Кастомизация</h3>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {ACCESSORIES.map(acc => (
-                                        <button
-                                            key={acc.id}
-                                            disabled={ownedAccessories.includes(acc.id) || score < acc.cost}
-                                            onClick={() => { if(score >= acc.cost) { setScore(s => s - acc.cost); setOwnedAccessories(prev => [...prev, acc.id]); }}}
-                                            className={`p-4 flex flex-col items-center gap-2 rounded-2xl border transition-all ${ownedAccessories.includes(acc.id) ? 'border-green-500/50 bg-green-500/10' : score >= acc.cost ? 'border-white/10 bg-white/5 hover:bg-white/10' : 'opacity-20'}`}
-                                        >
-                                            <div className="text-3xl">{acc.icon}</div>
-                                            <div className="text-[8px] font-bold uppercase">{acc.cost.toLocaleString()}</div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </section>
+                        {/* ПРАВАЯ КОЛОНКА - МАГАЗИН */}
+                        <div className="lg:col-span-3 flex flex-col gap-4">
+                            <h3 className="text-[10px] text-gray-500 uppercase font-bold tracking-widest ml-2">Улучшения</h3>
+                            {next ? (
+                                <button
+                                    onClick={() => { if (score >= next.cost) { setScore(s => s - next.cost); setBlockIdx(i => i + 1); } }}
+                                    disabled={score < next.cost}
+                                    className={`p-6 rounded-3xl border text-left transition-all ${score >= next.cost ? 'border-blue-500/40 bg-blue-500/5 hover:bg-blue-500/10' : 'border-white/5 bg-white/5 opacity-40'}`}
+                                >
+                                    <div className="flex justify-between text-[9px] font-bold uppercase text-blue-400 mb-1"><span>Upgrade</span><span>{next.cost.toLocaleString()}</span></div>
+                                    <div className="text-lg font-black uppercase">{next.name}</div>
+                                </button>
+                            ) : null}
+                            <button 
+                                onClick={() => { if (score >= autoCost) { setScore(s => s - autoCost); setAutoLvl(l => l + 1); setAutoCost(c => Math.round(c * 1.3)); } }}
+                                disabled={score < autoCost}
+                                className={`p-6 rounded-3xl border text-left transition-all ${score >= autoCost ? 'border-white/20 bg-white/5' : 'border-white/5 opacity-30'}`}
+                            >
+                                <div className="text-[9px] text-gray-500 font-bold mb-1">AUTO-MODULE</div>
+                                <div className="text-lg font-black uppercase tracking-tighter">Sync Level {autoLvl}</div>
+                                <div className="text-[9px] mt-2 text-blue-400">Cost: {autoCost.toLocaleString()}</div>
+                            </button>
                         </div>
                     </main>
 
-                    <footer className="mt-auto p-8 text-[8px] text-gray-700 font-bold uppercase tracking-[1em]">
-                        CyberLife Systems • Detroit 2038
+                    <footer className="p-6 text-center text-[8px] text-gray-800 font-bold uppercase tracking-[1em]">
+                        CyberLife Systems • (C) 2038
                     </footer>
                 </div>
             );
